@@ -1,58 +1,113 @@
-# QoreChain full-stack web starter
+# QWill — a dead-man's switch for crypto inheritance
 
-A minimal [Vite](https://vitejs.dev) + React + TypeScript dApp that uses
-[`@qorechain/sdk`](https://github.com/qorechain/qorechain-sdk) to:
+**If you stop checking in, your beneficiary can recover what you left for them.
+Every check-in is a hybrid-signed QoreChain transaction: classical secp256k1 +
+post-quantum ML-DSA-87.**
 
-- connect to QoreChain testnet (`createClient`),
-- read a native balance for an address you enter, and
-- read the tokenomics overview (`qor_getTokenomicsOverview`).
+Built for the [QoreChain Developer Fest — Build Before Q-Day](https://build.qorechain.io),
+category **Quantum Pass**. Runs on the QoreChain testnet (`qorechain-diana`).
 
-## Prerequisites
+## The problem
 
-- **Node.js >= 20**.
-- A reachable QoreChain **REST** endpoint (`VITE_QORE_REST_URL`) for balances and
-  an **EVM JSON-RPC** endpoint (`VITE_QORE_EVM_RPC_URL`) for the `qor_*`
-  namespace. Both default to localhost. Point them at a testnet
-  (`qorechain-diana`) or mainnet (`qorechain-vladi`) node, or a local node.
+Crypto wealth dies with its owner. Seed phrases are lost, passwords are never
+shared, and families cannot recover assets when something happens to the one
+person who held the keys. The usual fixes are bad: handing your seed phrase to
+a relative today defeats self-custody, and a lawyer with an envelope is a
+single point of failure.
 
-## Setup & run
+There is a second, slower problem: even a perfectly kept will is written in
+classical cryptography. Instructions and proofs signed with ECDSA alone will
+not stay trustworthy once quantum computers can forge them — the exact threat
+QoreChain exists to answer.
+
+## How QWill works
+
+1. **Register a will.** You name a beneficiary (a `qor1…` address) and write
+   recovery instructions. The instructions are encrypted **client-side to your
+   beneficiary** with QoreSeal (ML-KEM-1024, FIPS 203). Only a hash commitment
+   of the encrypted envelope and the will's metadata ever touch the chain —
+   never plaintext, never secrets.
+2. **Check in to prove you are alive.** Each check-in is a real testnet
+   transaction signed **hybrid** (secp256k1 + ML-DSA-87) through
+   `@qorechain/sdk`. A check-in resets your countdown. Because the signature is
+   post-quantum, the proof of life stays valid in a post-quantum world.
+3. **If you lapse, the switch flips.** When no check-in lands within the
+   interval you chose, the will becomes *releasable*. The lapse is computed
+   from on-chain block times of your own transactions, so anyone can verify it
+   in the explorer — no server decides who is "dead".
+4. **Your beneficiary claims.** The beneficiary opens a claim; the app verifies
+   the lapse against the chain, then releases the encrypted envelope. Only the
+   beneficiary's key can decrypt it.
+
+The original piece is the switch itself: lapse-and-release driven entirely by
+hybrid-signed check-in transactions.
+
+## On-chain vs off-chain
+
+| On-chain (QoreChain testnet)                    | Off-chain (app storage)              |
+| ----------------------------------------------- | ------------------------------------ |
+| Will registration (hybrid-signed tx)            | The encrypted envelope (QoreSeal)    |
+| Commitment hash of the encrypted envelope       | —                                    |
+| Check-in transactions (the proof of life)       | —                                    |
+| Beneficiary claim transaction                   | —                                    |
+| Beneficiary address + check-in interval         | Plaintext instructions: **nowhere**  |
+
+## Architecture
+
+- `src/qwill/config.ts` — testnet endpoints and chain constants.
+- `src/qwill/types.ts` — the will / check-in / claim data model.
+- `src/qwill/switch.ts` — the dead-man's switch: pure lapse and claim logic.
+- `src/qwill/chain.ts` — `@qorechain/sdk` bootstrap: account derivation,
+  ML-DSA-87 key registration (`ensurePqcRegistered`) and hybrid signing.
+- `src/qwill/crypto.ts` — envelope commitment hashing and the QoreSeal
+  encryption boundary.
+- `src/App.tsx` — the web UI (from the official starter, being rebuilt into
+  the QWill flow: register → check in → claim).
+
+## Quickstart
 
 ```sh
-pnpm install
-cp .env.example .env   # the scaffolder already does this for you
-pnpm dev               # http://localhost:5173
+npm install
+npm run dev        # http://localhost:5173
 ```
 
-Configure endpoints in `.env` (only `VITE_`-prefixed vars are exposed to the
-browser):
+You need a QoreChain testnet account with a registered ML-DSA-87 key and some
+test QOR for fees:
 
-| Variable               | Purpose                | Default                 |
-| ---------------------- | ---------------------- | ----------------------- |
-| `VITE_QORE_REST_URL`     | Native REST (balances) | `/lcd` (the dev server proxy) |
-| `QORE_REST_PROXY_TARGET` | Where `/lcd` goes      | the chosen network's REST     |
-| `VITE_QORE_EVM_RPC_URL`  | EVM JSON-RPC (`qor_*`) | the chosen network's EVM RPC  |
+- Wallet: [QoreX](https://docs.qorechain.io/qorex/overview/) (switch it to
+  Testnet), or derive an account in code with `@qorechain/sdk`.
+- Free test QOR: the faucet on the [Dashboard](https://dashboard.qorechain.io).
+- Explorer: <https://explore.qore.network>
 
-The public REST API sends no CORS headers, so the browser reaches it through the
-Vite dev and preview servers (`/lcd`, see `vite.config.ts`). For production,
-serve the app behind a proxy that forwards `/lcd` the same way.
+Network: chain id `qorechain-diana` · EVM chain id `9800` ·
+REST `https://api-testnet.qore.host` · RPC `https://rpc-testnet.qore.host` ·
+EVM RPC `https://evm-testnet.qore.host`.
 
-## Build / type-check
+**Project testnet address:** _to be added on Day 2, after the first
+hybrid-signed check-in lands on chain._
 
-```sh
-pnpm typecheck   # tsc --noEmit
-pnpm build       # type-check + vite build
-```
+## Roadmap
 
-## Using `@qorechain/sdk` before it is published
+- **Day 1 (20 Nov)** — scaffold from `create-qorechain-dapp`, data model,
+  switch logic, chain + crypto skeletons. ← you are here
+- **Day 2 (21 Nov)** — register the project's ML-DSA-87 key, fund from the
+  faucet, first hybrid-signed registration + check-in transactions on testnet,
+  will state read back from chain.
+- **Day 3 (22 Nov)** — beneficiary claim flow, QoreSeal envelope encryption,
+  UI polish.
+- **By 2 Dec** — final README, demo video (≤ 3 min), submission checks.
 
-`@qorechain/sdk` is published to npm - once published, `pnpm install` just
-works. Until then, scaffold with the CLI's `--local` flag to rewrite the
-dependency to a `file:` link into the SDK monorepo, after building the workspace
-packages:
+## Kits and credits
 
-```sh
-# at the qorechain-sdk monorepo root
-pnpm -r build
-# then scaffold with --local
-npx create-qorechain-dapp my-dapp --template fullstack-web --local
-```
+- Scaffolded with the official
+  [`create-qorechain-dapp`](https://build.qorechain.io/kits) starter
+  (`fullstack-web` template: Vite + React + TypeScript).
+- [`@qorechain/sdk`](https://github.com/qorechain/qorechain-sdk) — client,
+  accounts and hybrid transaction signing.
+- Planned: [`@qorechain/qoreseal`](https://github.com/qorechain/qoreseal)
+  (ML-KEM-1024 envelope encryption) and QoreX for wallet connect.
+- Developed with an AI coding assistant — see [AI_USAGE.md](AI_USAGE.md).
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
