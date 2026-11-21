@@ -83,16 +83,28 @@ Network: chain id `qorechain-diana` · EVM chain id `9800` ·
 REST `https://api-testnet.qore.host` · RPC `https://rpc-testnet.qore.host` ·
 EVM RPC `https://evm-testnet.qore.host`.
 
-**Project testnet address:** _to be added on Day 2, after the first
-hybrid-signed check-in lands on chain._
+**Project testnet address (owner):**
+[`qor1jycnxeftt8hw38kt32x93lt20rs7rqdddmczdc`](https://explore.qore.network/address/qor1jycnxeftt8hw38kt32x93lt20rs7rqdddmczdc)
+· beneficiary: `qor12hr9fsleukr4mw2w9vqkr98u4gjt8et78fw3g2`
+
+First hybrid-signed transactions (Day 2, 21 Nov 2026, chain `qorechain-diana`):
+
+| Step | Tx | Height |
+| --- | --- | --- |
+| ML-DSA-87 key registration (`ensurePqcRegistered`) | [`66D7C02F…34128F`](https://explore.qore.network/tx/66D7C02FB143EC19D38E1C46446F8BDCA100D497C4005D67CA737C37AA34128F) | 10471388 |
+| Will registration anchor (memo `qwill:v1:register:qwill-demo-001`) | [`09FF534B…7FD97E`](https://explore.qore.network/tx/09FF534B2D1CA0B6AC8763A043CE40987D02851C5A17D3FAF9B4BBF3DE7FD97E) | 10471392 |
+| Check-in anchor (memo `qwill:v1:checkin:qwill-demo-001`) | [`0AD9869B…A8599`](https://explore.qore.network/tx/0AD9869B5CC530BFF3F0AC9592A4533DDE3B6D424685AFB6DF4BB786164A8599) | 10471395 |
+
+Reproduce with `node scripts/day2.mjs` (idempotent; reads the project
+testnet mnemonic from a file outside this repo).
 
 ## Roadmap
 
 - **Day 1 (20 Nov)** — scaffold from `create-qorechain-dapp`, data model,
-  switch logic, chain + crypto skeletons. ← you are here
+  switch logic, chain + crypto skeletons. ✅
 - **Day 2 (21 Nov)** — register the project's ML-DSA-87 key, fund from the
   faucet, first hybrid-signed registration + check-in transactions on testnet,
-  will state read back from chain.
+  will state read back from chain. ✅ (tx hashes above)
 - **Day 3 (22 Nov)** — beneficiary claim flow, QoreSeal envelope encryption,
   UI polish.
 - **By 2 Dec** — final README, demo video (≤ 3 min), submission checks.
