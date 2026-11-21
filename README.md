@@ -123,3 +123,9 @@ testnet mnemonic from a file outside this repo).
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
+
+## Fest status
+
+- Registered for Build Before Q-Day (Quantum Pass); project page: https://build.qorechain.io/p/qwill
+- Day 2 complete on testnet: ML-DSA-87 key registered, first hybrid register + check-in anchors confirmed on chain.
+- Next: heir-claim flow, QoreSeal envelope encryption, demo.
