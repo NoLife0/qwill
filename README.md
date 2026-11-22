@@ -55,20 +55,42 @@ hybrid-signed check-in transactions.
 ## Architecture
 
 - `src/qwill/config.ts` — testnet endpoints and chain constants.
-- `src/qwill/types.ts` — the will / check-in / claim data model.
+- `src/qwill/types.ts` — the will / check-in / claim data model, plus the
+  QoreSeal envelope shape.
 - `src/qwill/switch.ts` — the dead-man's switch: pure lapse and claim logic.
 - `src/qwill/chain.ts` — `@qorechain/sdk` bootstrap: account derivation,
   ML-DSA-87 key registration (`ensurePqcRegistered`) and hybrid signing.
-- `src/qwill/crypto.ts` — envelope commitment hashing and the QoreSeal
-  encryption boundary.
-- `src/App.tsx` — the web UI (from the official starter, being rebuilt into
-  the QWill flow: register → check in → claim).
+- `src/qwill/seal.ts` — QoreSeal v1 envelope: ML-KEM-1024 + AES-256-GCM,
+  HKDF-bound to chain + purpose, built on `@qorechain/pqc`.
+- `src/qwill/crypto.ts` — envelope commitment hashing (SHA-256 over the
+  canonical envelope JSON) and verification on release.
+- `src/qwill/history.ts` — will projection rebuilt from the owner's and
+  beneficiary's on-chain transaction histories (register → check-in →
+  lapse → claim, with premature claims ignored).
+- `src/qwill/claim.ts` — the beneficiary claim flow: lapse check, claim
+  anchor, commitment-checked envelope release.
+- `src/App.tsx` — the web UI: track a will live from chain (status +
+  countdown + claim eligibility) and verify a released envelope.
+- `scripts/day2.mjs` — first hybrid-signed transactions (key registration,
+  register + check-in anchors). `scripts/day3.mjs` — the full end-to-end:
+  fund beneficiary, register its PQC + ML-KEM keys, seal, register,
+  check in, wait for a real lapse, claim, release + decrypt.
 
 ## Quickstart
 
 ```sh
 npm install
 npm run dev        # http://localhost:5173
+npm test           # unit tests (switch, history, QoreSeal envelope)
+npm run typecheck
+```
+
+End-to-end on testnet (uses the project testnet mnemonic from a file
+outside this repo — never printed, never committed):
+
+```sh
+node scripts/day2.mjs   # key registration + first register/check-in anchors
+node scripts/day3.mjs   # beneficiary claim flow, end to end (see below)
 ```
 
 You need a QoreChain testnet account with a registered ML-DSA-87 key and some
@@ -98,6 +120,46 @@ First hybrid-signed transactions (Day 2, 21 Nov 2026, chain `qorechain-diana`):
 Reproduce with `node scripts/day2.mjs` (idempotent; reads the project
 testnet mnemonic from a file outside this repo).
 
+## Day 3 — beneficiary claim, end to end (22 Nov 2026)
+
+A second demo will, `qwill-demo-002`, with a 5-minute check-in interval so
+the whole life of a will fits in one run. `node scripts/day3.mjs` (idempotent)
+ran it end to end on `qorechain-diana`:
+
+| Step | Tx | Height |
+| --- | --- | --- |
+| Fund beneficiary (5 QOR, owner → beneficiary) | [`742B9EDB…216FC0B`](https://explore.qore.network/tx/742B9EDB620C4F2D7551983DE3726A726A852506B6CFEE286C9659B23216FC0B) | 10531324 |
+| Beneficiary ML-DSA-87 key registration | [`D2CEDA6D…829C39`](https://explore.qore.network/tx/D2CEDA6DA0ED0B815CD0F17A273512323235F39A19A9B3073506F69894829C39) | 10531328 |
+| Beneficiary ML-KEM-1024 key published (`MsgRegisterKEMKey`, verified via `fetchKemKey`) | [`0C4511CC…495FC`](https://explore.qore.network/tx/0C4511CC3F36396D92A19E4288FEB8B6EB040D59DC7FECE7E08DE235A30495FC) | 10531331 |
+| Will registration anchor (memo `qwill:v1:register:qwill-demo-002`) | [`54C1C281…1437E`](https://explore.qore.network/tx/54C1C281C9E6A429132CD836BF727B0F5D8B0BFFDFCDA5A0C808EED36721437E) | 10531333 |
+| Check-in anchor (memo `qwill:v1:checkin:qwill-demo-002`) | [`4A772F79…9E9338`](https://explore.qore.network/tx/4A772F7904BF985A5A7FC4E54E3DCB570C6097D8EEB2323ED16B8F7C5D9E9338) | 10531336 |
+| Beneficiary claim anchor (memo `qwill:v1:claim:qwill-demo-002`) | [`189EAFB0…FD6D14`](https://explore.qore.network/tx/189EAFB0FF2B210C4CC9D26B47057C9BF1E92C9A36BD6464470D451D7BFD6D14) | 10531737 |
+
+The envelope was sealed to the beneficiary's **registered** on-chain ML-KEM
+key; commitment `7220f993cac45911…` (full hash in the run log). After the
+check-in + 300 s lapse (verified from chain block times, projection status
+`lapsed`), the beneficiary claimed, the projection flipped to `claimed`,
+the commitment check passed, and the envelope decrypted to the original
+demo instructions.
+
+## Demo script (video, ≤ 3 min)
+
+1. **0:00–0:20 — the problem.** Crypto dies with its owner; a will in
+   classical crypto won't survive quantum computers either.
+2. **0:20–0:50 — register.** Owner registers will `qwill-demo-002`, names
+   the beneficiary, seals the instructions (QoreSeal, ML-KEM-1024).
+   Explorer: registration tx.
+3. **0:50–1:20 — check in.** Hybrid-signed check-in lands; the UI countdown
+   resets. Explorer: check-in tx, hybrid signature visible.
+4. **1:20–2:00 — lapse.** Countdown runs out (demo interval: 5 min,
+   timelapsed). The UI flips to LAPSED; the lapse is block time, verifiable
+   by anyone.
+5. **2:00–2:40 — claim + decrypt.** Beneficiary anchors the claim;
+   explorer: claim tx. App verifies the envelope commitment and releases
+   it; the beneficiary decrypts and reads the instructions.
+6. **2:40–3:00 — close.** One line: proof of life is a hybrid transaction,
+   and the switch is the chain's own clock.
+
 ## Roadmap
 
 - **Day 1 (20 Nov)** — scaffold from `create-qorechain-dapp`, data model,
@@ -106,7 +168,8 @@ testnet mnemonic from a file outside this repo).
   faucet, first hybrid-signed registration + check-in transactions on testnet,
   will state read back from chain. ✅ (tx hashes above)
 - **Day 3 (22 Nov)** — beneficiary claim flow, QoreSeal envelope encryption,
-  UI polish.
+  UI polish. ✅ (tx hashes above; claim verified: code 0, block time past
+  the deadline, projection `claimed`, envelope decrypted by the beneficiary)
 - **By 2 Dec** — final README, demo video (≤ 3 min), submission checks.
 
 ## Kits and credits
@@ -128,4 +191,5 @@ MIT — see [LICENSE](LICENSE).
 
 - Registered for Build Before Q-Day (Quantum Pass); project page: https://build.qorechain.io/p/qwill
 - Day 2 complete on testnet: ML-DSA-87 key registered, first hybrid register + check-in anchors confirmed on chain.
-- Next: heir-claim flow, QoreSeal envelope encryption, demo.
+- Day 3 complete on testnet: full register → check-in → lapse → claim flow on will `qwill-demo-002`, beneficiary ML-KEM-1024 key published + verified in the on-chain registry, envelope sealed to it, commitment verified, decrypted by the beneficiary. UI rebuilt: live will tracker + countdown + claim check + envelope verifier.
+- Next: cover image, demo video (≤ 3 min, script in README), final submit checks before 2 Dec 23:59 UTC.
