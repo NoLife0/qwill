@@ -7,3 +7,7 @@ dist/
 # QWill project secrets (testnet account; never committed)
 .qwill-testnet-mnemonic
 .qwill-day2-state.json
+.qwill-day3-state.json
+
+# Day-3 runner temp bundle (deleted after each run)
+.day3-bundle.tmp.mjs

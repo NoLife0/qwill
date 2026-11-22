@@ -56,11 +56,31 @@ export interface ClaimRecord {
   txHash: string;
 }
 
-/** The off-chain encrypted instructions envelope (see crypto.ts). */
+/**
+ * The off-chain encrypted instructions envelope (see seal.ts).
+ * QoreSeal v1 construction: AES-256-GCM payload under a random data key,
+ * the data key wrapped with an ML-KEM-1024 encapsulation to the recipient.
+ * All byte fields are base64. The chain only ever sees the commitment
+ * (SHA-256 over the canonical JSON of this object) — never the envelope.
+ */
 export interface SealedEnvelope {
   version: 1;
+  /** Construction marker: `qoreseal-v1/mlkem1024+aes256gcm`. */
+  construction: "qoreseal-v1/mlkem1024+aes256gcm";
+  /** Chain the envelope is bound to (HKDF info), e.g. `qorechain-diana`. */
+  chainId: string;
+  /** Purpose the envelope is bound to, e.g. `qwill-recovery-v1`. */
+  purpose: string;
   /** Beneficiary address the envelope is encrypted to. */
   recipient: string;
-  /** QoreSeal (ML-KEM-1024) envelope, base64. Produced client-side only. */
+  /** ML-KEM-1024 encapsulation ciphertext, base64 (1568 bytes). */
+  kemCiphertext: string;
+  /** AES-GCM nonce for the wrapped data key, base64 (12 bytes). */
+  wrapNonce: string;
+  /** Wrapped 32-byte data key (AES-256-GCM), base64. */
+  wrappedKey: string;
+  /** AES-GCM nonce for the payload, base64 (12 bytes). */
+  nonce: string;
+  /** Encrypted recovery instructions (AES-256-GCM), base64. */
   ciphertext: string;
 }

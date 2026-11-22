@@ -45,12 +45,15 @@ export interface OwnerSession {
 /**
  * Opens a session for the account behind `mnemonic`. Does not broadcast
  * anything; call `ensureHybridReady` before the first transaction.
+ * `accountIndex` selects the derived account: 0 is the owner, 1 the
+ * beneficiary (same mnemonic, no extra secret to manage).
  */
 export async function openOwnerSession(
   mnemonic: string,
+  accountIndex = 0,
 ): Promise<OwnerSession> {
   const client = qwillClient();
-  const account = await deriveNativeAccount(mnemonic);
+  const account = await deriveNativeAccount(mnemonic, { accountIndex });
   const signer = await directSignerFromPrivateKey(account.privateKey, "qor");
   const pqcKeypair = derivePqcCanonical(account.address, mnemonic);
   const tx = await client.connectTx(signer, { pqcKeypair });
@@ -81,13 +84,13 @@ export async function ensureHybridReady(
 /**
  * Sends a hybrid-signed self-transfer carrying a QWill memo — the anchoring
  * primitive for registrations, check-ins and claims. The transferred amount
- * is a nominal 1 uqor to the owner's own address; the payload is the memo
- * (`qwill:v1:<action>:<willId>`, see config.ts) and the block time the chain
- * stamps on the transaction.
+ * is a nominal 1 uqor to the session account's own address; the payload is
+ * the memo (`qwill:v1:<action>:<willId>`, see config.ts) and the block time
+ * the chain stamps on the transaction.
  *
- * TODO(Day 2): run against the funded project account, record the first
- * registration + check-in hashes in the README, and read the will projection
- * back from the account's transaction history.
+ * Day 2 ran this for the first registration + check-in anchors on testnet
+ * (hashes in the README). Day 3 adds the claim anchor, sent from the
+ * beneficiary's session instead of the owner's.
  */
 export async function anchorAction(
   session: OwnerSession,

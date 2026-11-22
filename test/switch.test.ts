@@ -103,6 +103,34 @@ describe("projection from history", () => {
     assert.equal(proj.status, "lapsed");
   });
 
+  it("a claim after the deadline flips the will to claimed (terminal)", () => {
+    const deadline = 1_500_000 + 30 * 24 * 60 * 60;
+    const withClaim: AnchoredTx[] = [
+      ...anchored,
+      { hash: "K1", height: "40", atSec: deadline + 10, action: "claim", willId: "qwill-demo-001", memo: "qwill:v1:claim:qwill-demo-001" },
+      // A check-in after the claim must be ignored: the will stays claimed.
+      { hash: "C2", height: "50", atSec: deadline + 20, action: "checkin", willId: "qwill-demo-001", memo: "qwill:v1:checkin:qwill-demo-001" },
+    ];
+    const proj = projectWillFromHistory(withClaim, facts, deadline + 30);
+    assert.ok(proj);
+    assert.equal(proj.status, "claimed");
+    assert.equal(proj.will.status, "claimed");
+    assert.equal(proj.claim?.txHash, "K1");
+    assert.equal(proj.will.lastCheckInAt, 1_500_000);
+    assert.equal(canClaim(proj.will, "qor1heir", deadline + 30), false);
+  });
+
+  it("a premature claim (before the deadline) is ignored", () => {
+    const withEarlyClaim: AnchoredTx[] = [
+      ...anchored,
+      { hash: "K0", height: "25", atSec: 1_600_000, action: "claim", willId: "qwill-demo-001", memo: "qwill:v1:claim:qwill-demo-001" },
+    ];
+    const proj = projectWillFromHistory(withEarlyClaim, facts, 1_600_000);
+    assert.ok(proj);
+    assert.equal(proj.status, "active");
+    assert.equal(proj.claim, undefined);
+  });
+
   it("returns null without a registration anchor", () => {
     const noReg = anchored.filter((t) => t.action !== "register");
     assert.equal(projectWillFromHistory(noReg, facts, 1_600_000), null);

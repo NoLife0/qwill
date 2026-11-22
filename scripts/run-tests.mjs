@@ -21,16 +21,21 @@ if (entries.length === 0) {
 
 const outDir = mkdtempSync(join(tmpdir(), "qwill-tests-"));
 try {
-  const outFile = join(outDir, "tests.cjs");
+  // One bundle per test file (esbuild needs `outdir` for multiple entries).
   await build({
     entryPoints: entries,
     bundle: true,
     platform: "node",
     format: "cjs",
-    outfile: outFile,
+    outdir: outDir,
     logLevel: "silent",
   });
-  const res = spawnSync(process.execPath, ["--test", outFile], { stdio: "inherit" });
+  const outFiles = entries.map((f) =>
+    join(outDir, f.slice(testDir.length + 1).replace(/\.ts$/, ".js")),
+  );
+  const res = spawnSync(process.execPath, ["--test", ...outFiles], {
+    stdio: "inherit",
+  });
   process.exit(res.status ?? 1);
 } finally {
   rmSync(outDir, { recursive: true, force: true });
